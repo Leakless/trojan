@@ -71,6 +71,15 @@ func IsValidDBName(name string) bool {
 	return regexp.MustCompile(`^[A-Za-z0-9_]+$`).MatchString(name)
 }
 
+// IsValidDomain 校验是否为合法域名(仅字母/数字/连字符/点), 防止域名值被注入到 shell 命令
+func IsValidDomain(domain string) bool {
+	if domain == "" || len(domain) > 253 {
+		return false
+	}
+	pattern := `^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$`
+	return regexp.MustCompile(pattern).MatchString(domain)
+}
+
 // VerifyEmailFormat 邮箱验证
 func VerifyEmailFormat(email string) bool {
 	pattern := `^[0-9a-z][_.0-9a-z-]{0,31}@([0-9a-z][0-9a-z-]{0,30}[0-9a-z]\.){1,4}[a-z]{2,4}$`

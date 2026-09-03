@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -50,11 +51,16 @@ func IsExists(path string) bool {
 func GetLocalIP() string {
 	resp, err := http.Get("http://api.ipify.org")
 	if err != nil {
-		resp, _ = http.Get("http://icanhazip.com")
+		if resp, err = http.Get("http://icanhazip.com"); err != nil {
+			// 两个服务都不可达, 返回空避免 nil 解引用 panic
+			return ""
+		}
 	}
 	defer resp.Body.Close()
 	s, _ := io.ReadAll(resp.Body)
-	return string(s)
+	// 必须 TrimSpace: icanhazip 等服务返回的 IP 带结尾换行符,
+	// 否则证书申请时 "localIP == ip.String()" 永不相等, 域名校验死循环, 无法签发
+	return strings.TrimSpace(string(s))
 }
 
 // InstallPack 安装指定名字软件

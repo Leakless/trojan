@@ -89,6 +89,10 @@ func InstallTls() {
 		fmt.Printf("本机ip: %s\n", localIP)
 		for {
 			domain = util.Input("请输入申请证书的域名: ", "")
+			if !util.IsValidDomain(domain) {
+				fmt.Println("域名格式非法(仅允许字母/数字/连字符/点), 请重新输入")
+				continue
+			}
 			ipList, err := net.LookupIP(domain)
 			fmt.Printf("%s 解析到的ip: %v\n", domain, ipList)
 			if err != nil {
@@ -134,7 +138,8 @@ func InstallTls() {
 			}
 			util.ExecCommand(fmt.Sprintf("bash /root/.acme.sh/acme.sh --server %s --register-account -m %s", server, email))
 		}
-		issueCommand := fmt.Sprintf("bash /root/.acme.sh/acme.sh --issue -d %s --debug --standalone --keylength ec-256 --force --server %s", domain, server)
+		// --reloadcmd: 证书自动续期后重启 trojan 以加载新证书, 否则续期后仍用旧证书直至手动重启
+		issueCommand := fmt.Sprintf("bash /root/.acme.sh/acme.sh --issue -d %s --debug --standalone --keylength ec-256 --force --server %s --reloadcmd \"systemctl restart trojan\"", domain, server)
 		if server == "buypass" {
 			issueCommand = issueCommand + " --days 170"
 		}
