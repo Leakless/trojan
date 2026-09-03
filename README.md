@@ -1,101 +1,61 @@
-# trojan
-![](https://img.shields.io/github/v/release/Jrohy/trojan.svg) 
-![](https://img.shields.io/docker/pulls/jrohy/trojan.svg)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Jrohy/trojan)](https://goreportcard.com/report/github.com/Jrohy/trojan)
-[![Downloads](https://img.shields.io/github/downloads/Jrohy/trojan/total.svg)](https://img.shields.io/github/downloads/Jrohy/trojan/total.svg)
-[![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0.en.html)
+# trojan 管理平台（安全修复 + Docker 化版）
 
+基于开源项目 [Jrohy/trojan](https://github.com/Jrohy/trojan) 的**安全加固 + 规范化 + Docker 一键部署**版本。
+前端源码与后端源码分仓于同一个 monorepo，数据面仍为 trojan-go + MySQL。
 
-trojan多用户管理部署程序
-
-## 功能
-- 在线web页面和命令行两种方式管理trojan多用户
-- 启动 / 停止 / 重启 trojan 服务端
-- 支持流量统计和流量限制
-- 命令行模式管理, 支持命令补全
-- 集成acme.sh证书申请
-- 生成客户端配置文件
-- 在线实时查看trojan日志
-- 在线trojan和trojan-go随时切换
-- 支持trojan://分享链接和二维码分享(仅限web页面)
-- 支持转化为clash订阅地址并导入到[clash_for_windows](https://github.com/Fndroid/clash_for_windows_pkg/releases)(仅限web页面)
-- 限制用户使用期限
-
-## 安装方式
-*trojan使用请提前准备好服务器可用的域名*  
-
-###  a. 一键脚本安装
-```
-#安装/更新
-source <(curl -sL https://git.io/trojan-install)
-
-#卸载
-source <(curl -sL https://git.io/trojan-install) --remove
+## 目录结构
 
 ```
-安装完后输入'trojan'可进入管理程序   
-浏览器访问 https://域名 可在线web页面管理trojan用户  
-前端页面源码地址: [trojan-web](https://github.com/Jrohy/trojan-web)
-
-### b. docker运行
-1. 安装mysql  
-
-因为mariadb内存使用比mysql至少减少一半, 所以推荐使用mariadb数据库
-```
-docker run --name trojan-mariadb --restart=always -p 3306:3306 -v /home/mariadb:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=trojan -e MYSQL_ROOT_HOST=% -e MYSQL_DATABASE=trojan -d mariadb:10.2
-```
-端口和root密码以及持久化目录都可以改成其他的
-
-2. 安装trojan
-```
-docker run -it -d --name trojan --net=host --restart=always --privileged jrohy/trojan init
-```
-运行完后进入容器 `docker exec -it trojan bash`, 然后输入'trojan'即可进行初始化安装   
-
-启动web服务: `systemctl start trojan-web`   
-
-设置自启动: `systemctl enable trojan-web`
-
-更新管理程序: `source <(curl -sL https://git.io/trojan-install)`
-
-## 运行截图
-![avatar](asset/1.png)
-![avatar](asset/2.png)
-
-## 命令行
-```
-Usage:
-  trojan [flags]
-  trojan [command]
-
-Available Commands:
-  add           添加用户
-  clean         清空指定用户流量
-  completion    自动命令补全(支持bash和zsh)
-  del           删除用户
-  help          Help about any command
-  info          用户信息列表
-  log           查看trojan日志
-  port          修改trojan端口
-  restart       重启trojan
-  start         启动trojan
-  status        查看trojan状态
-  stop          停止trojan
-  tls           证书安装
-  update        更新trojan
-  updateWeb     更新trojan管理程序
-  version       显示版本号
-  import [path] 导入sql文件
-  export [path] 导出sql文件
-  web           以web方式启动
-
-Flags:
-  -h, --help   help for trojan
+.
+├── backend/            # Go 后端（管理面板 + CLI），module: trojan
+│   ├── cmd/  core/  trojan/  util/  web/  asset/
+│   ├── main.go  go.mod  go.sum
+│   └── web/templates/  # 构建时由前端产物注入（.gitignore, go:embed）
+├── frontend/           # Vue3 + Vite 前端源码
+├── docker/
+│   └── entrypoint.sh   # 容器启动脚本（渲染 config.json、等待 DB、起面板）
+├── Dockerfile          # 多阶段：前端构建 → 后端内嵌构建 → 运行镜像
+├── docker-compose.yml  # app + MySQL 8.4
+└── .env.example        # 环境变量样例
 ```
 
-## 注意
-安装完trojan后强烈建议开启BBR等加速: [one_click_script](https://github.com/jinwyp/one_click_script)  
+## 安全修复要点（相对上游）
 
-## Thanks
-感谢JetBrains提供的免费GoLand  
-[![avatar](asset/jetbrains.svg)](https://jb.gg/OpenSource)
+- **修复未授权接管**：`/auth/register` 加首装守卫，已存在管理员即拒绝（堵住任意重置 admin 口令的接管洞）。
+- **全量参数化 SQL**：消除登录框等处的 SQL 注入。
+- **强随机 + 口令哈希**：JWT 密钥改 `crypto/rand`；管理口令 bcrypt 存储 + 常量时间比较（兼容旧存量并自动迁移）。
+- **CSRF/限速**：Cookie `HttpOnly`+`SameSite=Strict`+（SSL 下）`Secure`；登录失败限速。
+- **导入不再毁库**：CSV 导入去掉 `DROP TABLE`，改事务内替换。
+- **依赖升级**：后端 gin/golang-jwt/gorilla-websocket 等 + Go toolchain；前端全量升级并**本地打包**（去掉 CDN 外链，`npm audit` 0 漏洞）。
+
+> 详细清单见提交历史与 `backend/` 各文件改动。
+
+## Docker 一键部署
+
+```bash
+cp .env.example .env      # 按需修改数据库密码等
+docker compose up -d --build
+```
+
+- 管理面板默认绑定 `127.0.0.1:8080`（`.env` 的 `WEB_BIND`）。**公网部署务必前置 HTTPS 反代，勿裸暴露。**
+- 首次访问会提示创建管理员账号。
+- 数据持久化于命名卷：`mysql-data`（数据库）、`trojan-config`（trojan 配置）、`trojan-manager`（面板 leveldb：管理员口令/密钥等）。
+
+真实服务器上申请证书、安装/管理 trojan-go 走面板内的既有流程（容器内置 `systemctl` 兼容层）。
+
+## 本地开发
+
+前端：
+```bash
+cd frontend && npm install && npm run dev   # http://127.0.0.1:5173, 代理到后端
+```
+
+后端（需先放置前端产物到 `backend/web/templates`）：
+```bash
+cd frontend && npm run build && cp -r dist ../backend/web/templates
+cd ../backend && go run . web --host 0.0.0.0 --port 8080
+```
+
+## 致谢
+
+上游项目：[Jrohy/trojan](https://github.com/Jrohy/trojan) / [Jrohy/trojan-web](https://github.com/Jrohy/trojan-web)（GPL-3.0）。

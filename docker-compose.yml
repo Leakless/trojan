@@ -1,0 +1,51 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-trojan}
+      MYSQL_USER: ${MYSQL_USER:-trojan}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme_trojan}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-changeme_root}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # 默认不对外暴露数据库端口, 仅容器内网访问
+    expose:
+      - "3306"
+
+  trojan:
+    build:
+      context: .
+      args:
+        VERSION: ${VERSION:-docker}
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-trojan}
+      MYSQL_USER: ${MYSQL_USER:-trojan}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-changeme_trojan}
+      WEB_PORT: "80"
+    ports:
+      - "${WEB_BIND:-127.0.0.1:8080}:80"   # 管理面板(本地默认只绑 127.0.0.1)
+      - "${TROJAN_BIND:-443}:443"          # trojan-go 代理端口
+    volumes:
+      - trojan-config:/usr/local/etc/trojan
+      - trojan-manager:/var/lib/trojan-manager
+    # trojan-go 需要 iptables/网络能力; 真实部署放开, 本地测试面板可不需要
+    cap_add:
+      - NET_ADMIN
+
+volumes:
+  mysql-data:
+  trojan-config:
+  trojan-manager:

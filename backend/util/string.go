@@ -1,0 +1,185 @@
+package util
+
+import (
+	cryptorand "crypto/rand"
+	"fmt"
+	"github.com/eiannone/keyboard"
+	"math/big"
+	"reflect"
+	"regexp"
+	"strconv"
+)
+
+const (
+	// RED 红色
+	RED = "\033[31m"
+	// GREEN 绿色
+	GREEN = "\033[32m"
+	// YELLOW 黄色
+	YELLOW = "\033[33m"
+	// BLUE 蓝色
+	BLUE = "\033[34m"
+	// FUCHSIA 紫红色
+	FUCHSIA = "\033[35m"
+	// CYAN 青色
+	CYAN = "\033[36m"
+	// WHITE 白色
+	WHITE = "\033[37m"
+	// RESET 重置颜色
+	RESET = "\033[0m"
+	// LETTER 大小写英文字母常量
+	LETTER = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	// DIGITS 数字常量
+	DIGITS = "0123456789"
+	// SPECIALS 特殊字符常量
+	SPECIALS = "~=+%^*/()[]{}/!@#$?|"
+	// ALL 全部字符常量
+	ALL = LETTER + DIGITS + SPECIALS
+)
+
+// IsInteger 判断字符串是否为整数
+func IsInteger(input string) bool {
+	_, err := strconv.Atoi(input)
+	return err == nil
+}
+
+// randInt 使用 crypto/rand 返回 [0, max) 区间的安全随机整数
+func randInt(max int) int {
+	n, err := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(max)))
+	if err != nil {
+		// crypto/rand 在正常系统上不会失败; 兜底避免 panic
+		panic(fmt.Sprintf("crypto/rand 不可用: %v", err))
+	}
+	return int(n.Int64())
+}
+
+// RandString 加密安全的随机字符串(基于 crypto/rand)
+func RandString(length int, source string) string {
+	var runes = []rune(source)
+	b := make([]rune, length)
+	for i := range b {
+		b[i] = runes[randInt(len(runes))]
+	}
+	return string(b)
+}
+
+// IsValidDBName 校验数据库名只含安全字符(字母/数字/下划线), 用于无法参数化的标识符位置
+func IsValidDBName(name string) bool {
+	if name == "" || len(name) > 64 {
+		return false
+	}
+	return regexp.MustCompile(`^[A-Za-z0-9_]+$`).MatchString(name)
+}
+
+// VerifyEmailFormat 邮箱验证
+func VerifyEmailFormat(email string) bool {
+	pattern := `^[0-9a-z][_.0-9a-z-]{0,31}@([0-9a-z][0-9a-z-]{0,30}[0-9a-z]\.){1,4}[a-z]{2,4}$`
+	reg := regexp.MustCompile(pattern)
+	return reg.MatchString(email)
+}
+
+func getChar(str string) string {
+	err := keyboard.Open()
+	if err != nil {
+		panic(err)
+	}
+	defer keyboard.Close()
+	fmt.Print(str)
+	char, _, _ := keyboard.GetKey()
+	fmt.Printf("%c\n", char)
+	if char == 0 {
+		return ""
+	}
+	return string(char)
+}
+
+// LoopInput 循环输入选择, 或者直接回车退出
+func LoopInput(tip string, choices interface{}, singleRowPrint bool) int {
+	reflectValue := reflect.ValueOf(choices)
+	if reflectValue.Kind() != reflect.Slice && reflectValue.Kind() != reflect.Array {
+		fmt.Println("only support slice or array type!")
+		return -1
+	}
+	length := reflectValue.Len()
+	if reflectValue.Type().String() == "[]string" {
+		if singleRowPrint {
+			for i := 0; i < length; i++ {
+				fmt.Printf("%d.%s\n\n", i+1, reflectValue.Index(i).Interface())
+			}
+		} else {
+			for i := 0; i < length; i++ {
+				if i%2 == 0 {
+					fmt.Printf("%d.%-15s\t", i+1, reflectValue.Index(i).Interface())
+				} else {
+					fmt.Printf("%d.%-15s\n\n", i+1, reflectValue.Index(i).Interface())
+				}
+			}
+		}
+	}
+	for {
+		inputString := ""
+		if length < 10 {
+			inputString = getChar(tip)
+		} else {
+			fmt.Print(tip)
+			_, _ = fmt.Scanln(&inputString)
+		}
+		if inputString == "" {
+			return -1
+		} else if !IsInteger(inputString) {
+			fmt.Println("输入有误,请重新输入")
+			continue
+		}
+		number, _ := strconv.Atoi(inputString)
+		if number <= length && number > 0 {
+			return number
+		}
+		fmt.Println("输入数字越界,请重新输入")
+	}
+}
+
+// Input 读取终端用户输入
+func Input(tip string, defaultValue string) string {
+	input := ""
+	fmt.Print(tip)
+	_, _ = fmt.Scanln(&input)
+	if input == "" && defaultValue != "" {
+		input = defaultValue
+	}
+	return input
+}
+
+// Red 红色
+func Red(str string) string {
+	return RED + str + RESET
+}
+
+// Green 绿色
+func Green(str string) string {
+	return GREEN + str + RESET
+}
+
+// Yellow 黄色
+func Yellow(str string) string {
+	return YELLOW + str + RESET
+}
+
+// Blue 蓝色
+func Blue(str string) string {
+	return BLUE + str + RESET
+}
+
+// Fuchsia 紫红色
+func Fuchsia(str string) string {
+	return FUCHSIA + str + RESET
+}
+
+// Cyan 青色
+func Cyan(str string) string {
+	return CYAN + str + RESET
+}
+
+// White 白色
+func White(str string) string {
+	return WHITE + str + RESET
+}
