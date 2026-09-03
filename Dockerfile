@@ -39,7 +39,9 @@ RUN curl -fsSL "https://raw.githubusercontent.com/gdraheim/docker-systemctl-repl
       -o /usr/bin/systemctl && chmod +x /usr/bin/systemctl || echo "warn: systemctl replacement 未安装(可稍后手动放置)"
 COPY --from=backend /trojan /usr/local/bin/trojan
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh \
+# 去掉可能的 CRLF(Windows 检出会把 .sh 变成 CRLF, 导致 /usr/bin/env bash\r 报错), 再赋可执行
+RUN sed -i 's/\r$//' /entrypoint.sh \
+    && chmod +x /entrypoint.sh \
     && echo "source <(trojan completion bash)" >> /root/.bashrc
 EXPOSE 80 443
 ENTRYPOINT ["/entrypoint.sh"]
